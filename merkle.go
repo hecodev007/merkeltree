@@ -6,7 +6,14 @@ import (
 	"encoding/hex"
 	"hash"
 	"math"
+	"sort"
 )
+
+type Option struct {
+	Sort       bool
+	SortLeaves bool
+	SortPairs  bool
+}
 
 type Content interface {
 	CalculateHash() ([]byte, error)
@@ -21,6 +28,9 @@ type Proof struct {
 }
 
 type MerkleTree struct {
+	sort          bool
+	sortPairs     bool
+	sortLeaves    bool
 	IsBitcoinTree bool
 	Layers        []Leaves
 	Leaves        Leaves
@@ -42,7 +52,27 @@ func New(leaves []Content) *MerkleTree {
 
 }
 
+func (t *MerkleTree) WithOption(option Option) {
+	if option.Sort {
+		t.sort = option.Sort
+		t.sortPairs = true
+		t.sortLeaves = true
+	}
+
+	if option.SortPairs {
+		t.sortPairs = option.SortPairs
+	}
+	if option.SortLeaves {
+		t.sortLeaves = option.SortLeaves
+	}
+}
+
 func (t *MerkleTree) createLayers() error {
+
+	if t.sortLeaves {
+		sort.Sort(t.Leaves)
+	}
+
 	t.Layers = make([]Leaves, 0)
 
 	t.Layers = append(t.Layers, t.Leaves)
