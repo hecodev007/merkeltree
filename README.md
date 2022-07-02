@@ -1,4 +1,6 @@
 # merkletree
+![image](https://user-images.githubusercontent.com/107161865/176990770-6b12ffc5-a00d-46dd-aa63-c817cc36a07d.png)
+
 copy to https://github.com/miguelmota/merkletreejs
 
 
