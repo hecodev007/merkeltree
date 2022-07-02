@@ -1,6 +1,7 @@
 # merkletree
 copy to https://github.com/miguelmota/merkletreejs
 
+![image](https://user-images.githubusercontent.com/107161865/176990550-48f76182-e2b3-4519-996e-26078e176c23.png)
 
 
 Construct Merkle Trees and verify proofs in Golang.
