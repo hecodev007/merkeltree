@@ -1,6 +1,8 @@
 package merkletree
 
-import "bytes"
+import (
+	"bytes"
+)
 
 func (s Leaves) Len() int {
 
@@ -8,7 +10,7 @@ func (s Leaves) Len() int {
 }
 
 func (s Leaves) Less(i, j int) bool {
-	return bytes.Compare(s[i], s[j]) == 1
+	return bytes.Compare(s[i], s[j]) < 0
 }
 
 func (s Leaves) Swap(i, j int) {

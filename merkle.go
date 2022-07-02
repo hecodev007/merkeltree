@@ -4,9 +4,14 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"hash"
+	"golang.org/x/crypto/sha3"
 	"math"
 	"sort"
+)
+
+const (
+	SHA3 int = 1 + iota
+	SHA256
 )
 
 type Option struct {
@@ -15,9 +20,8 @@ type Option struct {
 	SortPairs  bool
 }
 
-type Content interface {
-	CalculateHash() ([]byte, error)
-	Equals(other Content) (bool, error)
+type Content struct {
+	x string
 }
 
 type Leaves [][]byte
@@ -34,20 +38,14 @@ type MerkleTree struct {
 	IsBitcoinTree bool
 	Layers        []Leaves
 	Leaves        Leaves
-	hashFn        func() hash.Hash
+	hashFn        int
 }
 
-func New(leaves []Content) *MerkleTree {
+func New(defaultHash int) *MerkleTree {
 	t := &MerkleTree{
-		hashFn: sha256.New,
+		hashFn: defaultHash,
 	}
-
 	t.Leaves = make(Leaves, 0)
-	for _, l := range leaves {
-		hashByte, _ := l.CalculateHash()
-		t.Leaves = append(t.Leaves, hashByte)
-	}
-	t.createLayers()
 	return t
 
 }
@@ -65,6 +63,48 @@ func (t *MerkleTree) WithOption(option Option) {
 	if option.SortLeaves {
 		t.sortLeaves = option.SortLeaves
 	}
+}
+
+func (t *MerkleTree) calculateHash(data interface{}) ([]byte, error) {
+
+	switch t.hashFn {
+	case SHA3:
+		h := sha3.NewLegacyKeccak256()
+		_, err := h.Write(paddingZero(data))
+		if err != nil {
+			return nil, err
+		}
+		return h.Sum(nil), nil
+	case SHA256:
+		switch v := data.(type) {
+		case string:
+			h := sha256.New()
+			_, err := h.Write([]byte(v))
+			if err != nil {
+				return nil, err
+			}
+			return h.Sum(nil), nil
+		case []byte:
+			h := sha256.New()
+			_, err := h.Write(v)
+			if err != nil {
+				return nil, err
+			}
+			return h.Sum(nil), nil
+		}
+
+	}
+
+	return nil, nil
+
+}
+
+func (t *MerkleTree) InitLeaves(leaves []Content) {
+	for _, l := range leaves {
+		hashByte, _ := t.calculateHash(l.x)
+		t.Leaves = append(t.Leaves, hashByte)
+	}
+	_ = t.createLayers()
 }
 
 func (t *MerkleTree) createLayers() error {
@@ -102,14 +142,19 @@ func (t *MerkleTree) createHashes(nodes Leaves) error {
 			if i+1 == len(nodes) {
 				right = left
 			}
-			hashFn := t.hashFn()
-
-			hashByte := append(left, right...)
-			if _, err := hashFn.Write(hashByte); err != nil {
+			var hashByte []byte
+			if t.sortPairs {
+				tempLeaves := Leaves{left, right}
+				sort.Sort(tempLeaves)
+				hashByte = append(tempLeaves[0], tempLeaves[1]...)
+			} else {
+				hashByte = append(left, right...)
+			}
+			layerData, err := t.calculateHash(hashByte)
+			if err != nil {
 				return err
 			}
-
-			t.Layers[layerIndex] = append(t.Layers[layerIndex], hashFn.Sum(nil))
+			t.Layers[layerIndex] = append(t.Layers[layerIndex], layerData)
 
 		}
 
@@ -120,7 +165,7 @@ func (t *MerkleTree) createHashes(nodes Leaves) error {
 }
 
 func (t *MerkleTree) AddLeaf(leaf Content) {
-	byteLeaf, _ := leaf.CalculateHash()
+	byteLeaf, _ := t.calculateHash(leaf.x)
 
 	t.Leaves = append(t.Leaves, byteLeaf)
 	t.createLayers()
@@ -128,7 +173,7 @@ func (t *MerkleTree) AddLeaf(leaf Content) {
 
 func (t *MerkleTree) AddLeaves(leaves []Content) {
 	for _, l := range leaves {
-		hashByte, _ := l.CalculateHash()
+		hashByte, _ := t.calculateHash(l.x)
 		t.Leaves = append(t.Leaves, hashByte)
 	}
 	t.createLayers()
@@ -189,7 +234,8 @@ func (t *MerkleTree) GetHexRoot() string {
 	return hex.EncodeToString(t.GetRoot())
 }
 
-func (t *MerkleTree) GetProof(leaf []byte, index ...int) []*Proof {
+func (t *MerkleTree) GetProof(leafStr Content, index ...int) []*Proof {
+	leaf, _ := t.calculateHash(leafStr.x)
 	var idx int
 	var proofs []*Proof
 	if len(index) == 0 {
@@ -236,26 +282,31 @@ func (t *MerkleTree) GetProof(leaf []byte, index ...int) []*Proof {
 	return proofs
 }
 
-func (t *MerkleTree) Verify(proofs []*Proof, targetNode []byte, root []byte) (bool, error) {
+func (t *MerkleTree) Verify(proofs []*Proof, targetNodeContent Content, root []byte) (bool, error) {
+	targetNode, _ := t.calculateHash(targetNodeContent.x)
 	var verify bool
 	for i := 0; i < len(proofs); i++ {
-		var buffers [][]byte
+		var buffers Leaves
 		node := proofs[i]
 		data := node.Data
 		isLeftNode := node.Position == "left"
-		buffers = append(buffers, targetNode)
-		if isLeftNode {
-			buffers = append([][]byte{data}, buffers...)
+
+		if t.sortPairs {
+			buffers = Leaves{data, targetNode}
+			sort.Sort(buffers)
 		} else {
-			buffers = append(buffers, data)
+			buffers = append(buffers, targetNode)
+			if isLeftNode {
+				buffers = append([][]byte{data}, buffers...)
+			} else {
+				buffers = append(buffers, data)
+			}
 		}
 
-		h := t.hashFn()
+		var err error
 		hashFn := append(buffers[0], buffers[1]...)
-		if _, err := h.Write(hashFn); err != nil {
-			return verify, err
-		}
-		targetNode = h.Sum(nil)
+		targetNode, err = t.calculateHash(hashFn)
+		_ = err
 	}
 
 	verify = bytes.Equal(targetNode, root)
