@@ -21,7 +21,7 @@ type Option struct {
 }
 
 type Content struct {
-	x string
+	X string
 }
 
 type Leaves [][]byte
@@ -101,7 +101,7 @@ func (t *MerkleTree) calculateHash(data interface{}) ([]byte, error) {
 
 func (t *MerkleTree) InitLeaves(leaves []Content) {
 	for _, l := range leaves {
-		hashByte, _ := t.calculateHash(l.x)
+		hashByte, _ := t.calculateHash(l.X)
 		t.Leaves = append(t.Leaves, hashByte)
 	}
 	_ = t.createLayers()
@@ -165,7 +165,7 @@ func (t *MerkleTree) createHashes(nodes Leaves) error {
 }
 
 func (t *MerkleTree) AddLeaf(leaf Content) {
-	byteLeaf, _ := t.calculateHash(leaf.x)
+	byteLeaf, _ := t.calculateHash(leaf.X)
 
 	t.Leaves = append(t.Leaves, byteLeaf)
 	t.createLayers()
@@ -173,7 +173,7 @@ func (t *MerkleTree) AddLeaf(leaf Content) {
 
 func (t *MerkleTree) AddLeaves(leaves []Content) {
 	for _, l := range leaves {
-		hashByte, _ := t.calculateHash(l.x)
+		hashByte, _ := t.calculateHash(l.X)
 		t.Leaves = append(t.Leaves, hashByte)
 	}
 	t.createLayers()
@@ -235,7 +235,7 @@ func (t *MerkleTree) GetHexRoot() string {
 }
 
 func (t *MerkleTree) GetProof(leafStr Content, index ...int) []*Proof {
-	leaf, _ := t.calculateHash(leafStr.x)
+	leaf, _ := t.calculateHash(leafStr.X)
 	var idx int
 	var proofs []*Proof
 	if len(index) == 0 {
@@ -283,7 +283,7 @@ func (t *MerkleTree) GetProof(leafStr Content, index ...int) []*Proof {
 }
 
 func (t *MerkleTree) Verify(proofs []*Proof, targetNodeContent Content, root []byte) (bool, error) {
-	targetNode, _ := t.calculateHash(targetNodeContent.x)
+	targetNode, _ := t.calculateHash(targetNodeContent.X)
 	var verify bool
 	for i := 0; i < len(proofs); i++ {
 		var buffers Leaves
